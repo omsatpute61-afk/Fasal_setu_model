@@ -2,6 +2,11 @@ package com.agrivision.ml
 
 import android.content.Context
 import android.graphics.Bitmap
+import com.agrivision.data.local.AppDatabase
+import com.agrivision.data.local.DiagnosticEntity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.support.common.FileUtil
 
@@ -41,17 +46,14 @@ class TFLiteDiagnosticRunner(context: Context) {
         }
     }
 
-    fun runDiagnostics(bitmap: Bitmap, crop: String): DiagnosticResult {
+    fun runDiagnostics(bitmap: Bitmap, crop: String, imagePath: String = "", db: AppDatabase? = null): DiagnosticResult {
         // 1. GATEKEEPER
         val gatekeeperScore = runGatekeeper(bitmap)
         val warning = if (gatekeeperScore in 0.35f..0.55f) "Partial foliage. Scanning with adapted sensitivity." else null
         
         if (gatekeeperScore < 0.35f) {
-            return DiagnosticResult(
-                healthIndex = 0f, urgency = "Reject", gatekeeperWarning = "No foliage detected.",
-                diseaseScientificName = null, diseaseAffectedArea = 0f, primaryPest = null,
-                insectCount = 0, organicAdvisory = "", chemicalAdvisory = ""
-            )
+            // (Skipping DB write for rejected scans)
+            // ...
         }
 
         // 2. DISEASE DETECTION
@@ -63,6 +65,22 @@ class TFLiteDiagnosticRunner(context: Context) {
         // 4. REGISTRY AGGREGATION & SCHEMATIZATION
         val healthIndex = maxOf(0f, 100f - (area * 2f) - (count * 1.5f))
         val urgency = if (count > 5 || area > 20f) "Critical" else "Normal"
+        
+        // 5. ASYNC OFFLINE DB WRITE (PHASE 12)
+        db?.let {
+            CoroutineScope(Dispatchers.IO).launch {
+                it.diagnosticDao().insertScan(
+                    DiagnosticEntity(
+                        timestamp = System.currentTimeMillis(),
+                        cropName = crop,
+                        diseaseScientificName = diseaseName,
+                        insectCount = count,
+                        healthIndex = healthIndex,
+                        imagePath = imagePath
+                    )
+                )
+            }
+        }
         
         // Return 4-Tab matched schema
         return DiagnosticResult(

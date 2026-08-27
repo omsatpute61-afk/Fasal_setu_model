@@ -11,6 +11,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.agrivision.ml.DiagnosticResult
+import com.agrivision.ui.components.AudioPlayerFAB
 
 @Composable
 fun ResultTabsScreen(
@@ -90,6 +91,7 @@ fun OverviewTab(result: DiagnosticResult) {
     }
 }
 
+
 @Composable
 fun DiseaseTab(result: DiagnosticResult) {
     Column {
@@ -97,6 +99,9 @@ fun DiseaseTab(result: DiagnosticResult) {
         Text(result.diseaseScientificName ?: "None", fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, fontSize = 18.sp)
         Spacer(modifier = Modifier.height(8.dp))
         Text("Affected Area: ${result.diseaseAffectedArea}%")
+        
+        Spacer(modifier = Modifier.weight(1f))
+        AudioPlayerFAB("Disease Detected: ${result.diseaseScientificName ?: "None"}. Affected area is ${result.diseaseAffectedArea} percent.")
     }
 }
 
@@ -135,5 +140,8 @@ fun TreatmentTab(result: DiagnosticResult) {
                 Text(result.chemicalAdvisory)
             }
         }
+        
+        Spacer(modifier = Modifier.weight(1f))
+        AudioPlayerFAB("Organic Control: ${result.organicAdvisory}. Chemical Control: ${result.chemicalAdvisory}")
     }
 }
