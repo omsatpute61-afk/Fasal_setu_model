@@ -9,6 +9,8 @@ from src.preprocessing.image_enhancer import ImageEnhancer
 from src.preprocessing.plant_validator import PlantValidator
 from src.preprocessing.roi_extractor import LeafROIExtractor
 from src.data.taxonomy_registry import TaxonomyRegistry
+import os
+from ultralytics import YOLO
 
 class DecisionEngine:
     def __init__(self):
@@ -16,29 +18,18 @@ class DecisionEngine:
         self.validator = PlantValidator()
         self.roi_extractor = LeafROIExtractor()
         self.registry = TaxonomyRegistry()
-
-    def analyze_disease(self, enhanced_frame, crop):
-        """Mock method representing the YOLO/EfficientNet disease model"""
-        # Simulate detecting a disease based on the crop type
-        if crop == "Tomato":
-            return {"name": "Tomato Early Blight", "affected_area_pct": 22.5}
-        elif crop == "Maize":
-            return {"name": "Maize Blight", "affected_area_pct": 15.0}
-        return {"name": "Healthy", "affected_area_pct": 0.0}
-
-    def detect_pests(self, enhanced_frame, crop):
-        """Mock method representing the SAHI YOLO pest detection model"""
-        # Simulate finding aphids
-        return {
-            "name": "Aphid",
-            "count": 12,
-            "bboxes": [[10, 20, 30, 40], [50, 60, 70, 80]],
-            "etl_exceeded": True # Economic Threshold Level
-        }
-
-    def colorimetric_nutrients(self, enhanced_frame):
-        """Mock method representing the OpenCV nutrient chlorosis/necrosis logic"""
-        return {"deficiency": "Nitrogen", "severity": "Medium"}
+        
+        # Load actual trained YOLO models
+        # Using a try-except to fallback to base models if weights aren't present locally yet
+        try:
+            self.disease_model = YOLO("src/weights/disease_model.pt")
+        except:
+            self.disease_model = YOLO("yolov8n.pt") # Fallback for demo
+            
+        try:
+            self.pest_model = YOLO("src/weights/pest_model.pt")
+        except:
+            self.pest_model = YOLO("yolov8n.pt") # Fallback for demo
 
     def process_image(self, frame, crop):
         """
@@ -63,13 +54,38 @@ class DecisionEngine:
         is_soft_pass = validation["status"] == "SOFT_PASS"
 
         # 4. Leaf ROI Extraction (Auto-Zoom)
-        # Prevents downsampling from destroying high-frequency pest/disease details
         roi_frame = self.roi_extractor.extract_roi(enhanced_frame)
 
-        # 5. Run Diagnostic Models on the isolated ROI
-        disease_res = self.disease_model.predict(roi_frame) if hasattr(self, 'disease_model') else self.analyze_disease(roi_frame, crop)
-        pest_res = self.pest_model.predict(roi_frame) if hasattr(self, 'pest_model') else self.detect_pests(roi_frame, crop)
-        nutrient_res = self.nutrient_model.predict(roi_frame) if hasattr(self, 'nutrient_model') else self.colorimetric_nutrients(roi_frame)
+        # 5. DYNAMIC REAL-TIME INFERENCE (YOLO)
+        # Disease Prediction
+        disease_results = self.disease_model.predict(roi_frame, conf=0.45, verbose=False)
+        if disease_results and len(disease_results[0].boxes) > 0:
+            top_class_idx = int(disease_results[0].boxes.cls[0])
+            detected_disease = self.disease_model.names[top_class_idx]
+            
+            # Simple dummy approximation for affected area since YOLOv8 obb/seg would be needed for exact pixels
+            # We'll use the ratio of the bounding box area to the ROI area
+            box = disease_results[0].boxes.xyxy[0].cpu().numpy()
+            box_area = (box[2] - box[0]) * (box[3] - box[1])
+            roi_area = roi_frame.shape[0] * roi_frame.shape[1]
+            affected_area_pct = min(100.0, (box_area / roi_area) * 100)
+        else:
+            detected_disease = "Healthy"
+            affected_area_pct = 0.0
+
+        # Pest Prediction
+        pest_results = self.pest_model.predict(roi_frame, conf=0.35, verbose=False)
+        pest_count = len(pest_results[0].boxes) if pest_results else 0
+        pest_bboxes = []
+        if pest_count > 0:
+            top_pest_idx = int(pest_results[0].boxes.cls[0])
+            detected_pest = self.pest_model.names[top_pest_idx]
+            pest_bboxes = pest_results[0].boxes.xyxy.cpu().numpy().tolist()
+        else:
+            detected_pest = "None"
+            
+        disease_res = {"name": detected_disease, "affected_area_pct": affected_area_pct}
+        pest_res = {"name": detected_pest, "count": pest_count, "bboxes": pest_bboxes, "etl_exceeded": pest_count > 5}
 
         # 5. Registry Lookups
         disease_tax = self.registry.get_disease_info(disease_res["name"])
