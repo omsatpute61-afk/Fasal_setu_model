@@ -1,0 +1,8 @@
+torch
+torchvision
+ultralytics
+albumentations
+opencv-python-headless
+kaggle
+roboflow
+pytest
