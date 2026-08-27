@@ -65,6 +65,36 @@ fun ResultTabsScreen(
             }
         }
 
+        // KVK ESCALATION (Phase 14)
+        if (result.healthIndex < 40.0) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            FloatingActionButton(
+                onClick = {
+                    val message = "🚨 URGENT: My $cropName crop is failing. Disease: ${result.diseaseScientificName ?: "Unknown"}. Pest count: ${result.insectCount}. Please advise immediately."
+                    val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        putExtra(android.content.Intent.EXTRA_TEXT, message)
+                        type = "text/plain"
+                        setPackage("com.whatsapp")
+                    }
+                    try {
+                        context.startActivity(sendIntent)
+                    } catch (e: Exception) {
+                        // Fallback if WhatsApp is not installed
+                        val fallbackIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            putExtra(android.content.Intent.EXTRA_TEXT, message)
+                            type = "text/plain"
+                        }
+                        context.startActivity(android.content.Intent.createChooser(fallbackIntent, "Consult KVK Expert"))
+                    }
+                },
+                containerColor = Color.Red,
+                contentColor = Color.White,
+                modifier = Modifier.align(Alignment.End).padding(end = 16.dp, bottom = 8.dp)
+            ) {
+                Text("🚨 Consult Expert (KVK)", modifier = Modifier.padding(horizontal = 12.dp))
+            }
+        }
+
         // 4. BOTTOM ACTION
         Button(
             onClick = onScanAnother,

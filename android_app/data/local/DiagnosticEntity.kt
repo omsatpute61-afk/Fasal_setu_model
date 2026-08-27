@@ -11,5 +11,6 @@ data class DiagnosticEntity(
     val diseaseScientificName: String?,
     val insectCount: Int,
     val healthIndex: Float,
-    val imagePath: String
+    val imagePath: String,
+    val isSynced: Boolean = false
 )

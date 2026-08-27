@@ -12,4 +12,10 @@ interface DiagnosticDao {
 
     @Query("SELECT * FROM diagnostic_history ORDER BY timestamp DESC")
     fun getAllScans(): Flow<List<DiagnosticEntity>>
+
+    @Query("SELECT * FROM diagnostic_history WHERE isSynced = 0")
+    suspend fun getUnsyncedScans(): List<DiagnosticEntity>
+
+    @Query("UPDATE diagnostic_history SET isSynced = 1 WHERE id IN (:ids)")
+    suspend fun markAsSynced(ids: List<Int>)
 }

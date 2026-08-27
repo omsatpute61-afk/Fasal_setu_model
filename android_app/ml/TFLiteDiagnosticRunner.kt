@@ -66,6 +66,14 @@ class TFLiteDiagnosticRunner(context: Context) {
         val healthIndex = maxOf(0f, 100f - (area * 2f) - (count * 1.5f))
         val urgency = if (count > 5 || area > 20f) "Critical" else "Normal"
         
+        // PHASE 13: MOCK WEATHER INTEGRATION
+        // Note: In production, run this in a coroutine prior to this synchronous method, or make this method suspend.
+        // For the offline edge runner, we mock a synchronous weather fetch if cached.
+        val mockWeatherWarning = "⚠️ Rain Predicted: Do not apply chemical sprays today to prevent chemical wash-off."
+        
+        val baseChemicalAdvisory = "Apply Chlorantraniliprole for $pestName if ETL exceeded."
+        val finalChemicalAdvisory = "$baseChemicalAdvisory\n\n$mockWeatherWarning"
+        
         // 5. ASYNC OFFLINE DB WRITE (PHASE 12)
         db?.let {
             CoroutineScope(Dispatchers.IO).launch {
@@ -92,7 +100,7 @@ class TFLiteDiagnosticRunner(context: Context) {
             primaryPest = pestName,
             insectCount = count,
             organicAdvisory = "Apply 5% Neem Seed Extract for $pestName. Prune lower leaves for $diseaseName.",
-            chemicalAdvisory = "Apply Chlorantraniliprole for $pestName if ETL exceeded."
+            chemicalAdvisory = finalChemicalAdvisory
         )
     }
 
