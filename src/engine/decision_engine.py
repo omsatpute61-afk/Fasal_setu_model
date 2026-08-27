@@ -7,12 +7,14 @@ import time
 import json
 from src.preprocessing.image_enhancer import ImageEnhancer
 from src.preprocessing.plant_validator import PlantValidator
+from src.preprocessing.roi_extractor import LeafROIExtractor
 from src.data.taxonomy_registry import TaxonomyRegistry
 
 class DecisionEngine:
     def __init__(self):
         self.enhancer = ImageEnhancer()
         self.validator = PlantValidator()
+        self.roi_extractor = LeafROIExtractor()
         self.registry = TaxonomyRegistry()
 
     def analyze_disease(self, enhanced_frame, crop):
@@ -60,10 +62,14 @@ class DecisionEngine:
             
         is_soft_pass = validation["status"] == "SOFT_PASS"
 
-        # 4. Run Diagnostic Models
-        disease_res = self.analyze_disease(enhanced_frame, crop)
-        pest_res = self.detect_pests(enhanced_frame, crop)
-        nutrient_res = self.colorimetric_nutrients(enhanced_frame)
+        # 4. Leaf ROI Extraction (Auto-Zoom)
+        # Prevents downsampling from destroying high-frequency pest/disease details
+        roi_frame = self.roi_extractor.extract_roi(enhanced_frame)
+
+        # 5. Run Diagnostic Models on the isolated ROI
+        disease_res = self.analyze_disease(roi_frame, crop)
+        pest_res = self.detect_pests(roi_frame, crop)
+        nutrient_res = self.colorimetric_nutrients(roi_frame)
 
         # 5. Registry Lookups
         disease_tax = self.registry.get_disease_info(disease_res["name"])
