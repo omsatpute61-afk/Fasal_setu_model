@@ -110,8 +110,8 @@ if image_source:
 
         # Save to Local SQLite
         if "error" not in payload:
-            health = payload.get("tab_1_overview", {}).get("health_index", 0.0)
-            disease = payload.get("tab_2_disease", {}).get("pathogen", "None")
+            health = payload.get("tab_1_overview", {}).get("health_index_score", 0.0)
+            disease = payload.get("tab_2_disease", {}).get("common_name", "None")
             insert_scan(crop_selection, disease, health)
 
     if "error" in payload:
@@ -122,8 +122,8 @@ if image_source:
         
         with t1:
             st.header("Overview")
-            health_index = payload["tab_1_overview"]["health_index"]
-            urgency = payload["tab_1_overview"]["urgency"]
+            health_index = payload["tab_1_overview"]["health_index_score"]
+            urgency = payload["tab_1_overview"]["primary_urgency"]
             
             # Weather Advisory (Phase 13 equivalent)
             weather = get_mock_weather()
@@ -138,8 +138,9 @@ if image_source:
         with t2:
             st.header("Pathogen Diagnosis")
             disease_data = payload["tab_2_disease"]
-            if disease_data["pathogen"]:
-                st.subheader(f"🦠 {disease_data['pathogen']}")
+            if disease_data["common_name"] and disease_data["common_name"] != "Healthy":
+                st.subheader(f"🦠 {disease_data['common_name']}")
+                st.text(f"Scientific Name: {disease_data['scientific_name']}")
                 st.text(f"Affected Leaf Area: {disease_data['affected_area_percentage']:.1f}%")
             else:
                 st.success("No disease detected.")
@@ -147,10 +148,11 @@ if image_source:
         with t3:
             st.header("Pest Detection")
             pest_data = payload["tab_3_pests"]
-            if pest_data["primary_pest"]:
+            if pest_data["primary_pest"] and pest_data["primary_pest"] != "None":
                 st.subheader(f"🐛 {pest_data['primary_pest']}")
+                st.text(f"Scientific Name: {pest_data['scientific_name']}")
                 st.metric("Insect Count", pest_data["insect_count"])
-                if pest_data["insect_count"] > 5:
+                if pest_data["economic_threshold_warning"]:
                     st.error("WARNING: Economic Threshold Level Exceeded!")
             else:
                 st.success("No pests detected.")
@@ -159,11 +161,14 @@ if image_source:
             st.header("Treatment Advisory")
             treat_data = payload["tab_4_treatment"]
             
-            st.success(f"🌱 **Organic Control:** {treat_data['organic']}")
-            st.error(f"🧪 **Chemical Control:** {treat_data['chemical']}")
+            org_text = "\n".join(treat_data['organic_advisory'])
+            chem_text = "\n".join(treat_data['chemical_advisory'])
+            
+            st.success(f"🌱 **Organic Control:**\n{org_text}")
+            st.error(f"🧪 **Chemical Control:**\n{chem_text}")
             
             # Text-to-Speech (Phase 11 equivalent)
-            tts_text = f"Organic treatment: {treat_data['organic']}. Chemical treatment: {treat_data['chemical']}."
+            tts_text = f"Organic treatment: {org_text}. Chemical treatment: {chem_text}."
             st.markdown("### 🔊 Listen to Advisory")
             audio_file = generate_audio(tts_text, lang='hi') # Using Hindi locale for vernacular simulation
             if audio_file:
@@ -172,7 +177,7 @@ if image_source:
             # KVK Escalation (Phase 14 equivalent)
             if health_index < 40.0:
                 st.markdown("---")
-                msg = f"🚨 URGENT: My {crop_selection} crop is failing. Disease: {disease_data['pathogen']}. Pest count: {pest_data['insect_count']}. Please advise."
+                msg = f"🚨 URGENT: My {crop_selection} crop is failing. Disease: {disease_data['common_name']}. Pest count: {pest_data['insect_count']}. Please advise."
                 encoded_msg = urllib.parse.quote(msg)
                 whatsapp_url = f"https://wa.me/919999999999?text={encoded_msg}"
                 st.link_button("🚨 Consult Local KVK Expert (WhatsApp)", whatsapp_url)
