@@ -62,27 +62,44 @@ class ImageEnhancer:
         """
         Uses a fast Bilateral Filter to preserve edges while removing noise,
         followed by an Unsharp Mask for sharpening.
+        Optimized via downscaling to meet the 25ms Edge NPU latency budget.
         """
+        # Downscale for heavy filtering to meet extreme latency limits
+        small_frame = cv2.resize(frame, (320, 320), interpolation=cv2.INTER_LINEAR)
+        
         # Fast bilateral filtering
-        denoised = cv2.bilateralFilter(frame, d=5, sigmaColor=50, sigmaSpace=50)
+        denoised = cv2.bilateralFilter(small_frame, d=5, sigmaColor=50, sigmaSpace=50)
         
         # Unsharp Mask
         gaussian_blur = cv2.GaussianBlur(denoised, (0, 0), 2.0)
         sharpened = cv2.addWeighted(denoised, 1.5, gaussian_blur, -0.5, 0)
         
-        return sharpened
+        # Upscale back to original size
+        return cv2.resize(sharpened, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_LINEAR)
 
     def process(self, frame):
         """
         Runs all hardware-resilient steps sequentially.
+        Optimized by executing all heavy operations on a 320x320 scaled buffer.
         """
         start_time = time.perf_counter()
         
-        is_clear = self.check_quality(frame)
+        # Immediate downscale for heavy processing
+        original_shape = (frame.shape[1], frame.shape[0])
+        working_frame = cv2.resize(frame, (320, 320), interpolation=cv2.INTER_LINEAR)
         
-        balanced = self.auto_white_balance(frame)
+        is_clear = self.check_quality(working_frame)
+        
+        balanced = self.auto_white_balance(working_frame)
         illuminated = self.correct_illumination(balanced)
-        final_frame = self.denoise_and_sharpen(illuminated)
+        
+        # Fast bilateral filtering & Unsharp Mask
+        denoised = cv2.bilateralFilter(illuminated, d=5, sigmaColor=50, sigmaSpace=50)
+        gaussian_blur = cv2.GaussianBlur(denoised, (0, 0), 2.0)
+        sharpened = cv2.addWeighted(denoised, 1.5, gaussian_blur, -0.5, 0)
+        
+        # Upscale
+        final_frame = cv2.resize(sharpened, original_shape, interpolation=cv2.INTER_LINEAR)
         
         exec_time = (time.perf_counter() - start_time) * 1000 # in ms
         

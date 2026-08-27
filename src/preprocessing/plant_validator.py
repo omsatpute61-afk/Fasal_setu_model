@@ -14,9 +14,11 @@ class PlantValidator:
     def _calculate_foliage_confidence(self, frame) -> float:
         """
         Calculates a mock confidence score based on the ratio of green/yellow pixels.
-        In production, this would be a lightweight MobileNetV3 binary classifier.
+        Optimized by scaling down to a tiny proxy buffer before heavy pixel ops.
         """
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        # Downscale for lightning-fast array math
+        proxy = cv2.resize(frame, (160, 160), interpolation=cv2.INTER_NEAREST)
+        hsv = cv2.cvtColor(proxy, cv2.COLOR_BGR2HSV)
         
         # Broad range for foliage (yellow and green)
         lower_bound = np.array([25, 30, 30])
@@ -25,7 +27,7 @@ class PlantValidator:
         mask = cv2.inRange(hsv, lower_bound, upper_bound)
         
         # Calculate ratio of foliage to total pixels
-        total_pixels = frame.shape[0] * frame.shape[1] + 1e-5
+        total_pixels = proxy.shape[0] * proxy.shape[1] + 1e-5
         foliage_ratio = cv2.countNonZero(mask) / total_pixels
         
         # Scale the ratio to simulate a neural network confidence (0.0 to 1.0)

@@ -67,9 +67,9 @@ class DecisionEngine:
         roi_frame = self.roi_extractor.extract_roi(enhanced_frame)
 
         # 5. Run Diagnostic Models on the isolated ROI
-        disease_res = self.analyze_disease(roi_frame, crop)
-        pest_res = self.detect_pests(roi_frame, crop)
-        nutrient_res = self.colorimetric_nutrients(roi_frame)
+        disease_res = self.disease_model.predict(roi_frame) if hasattr(self, 'disease_model') else self.analyze_disease(roi_frame, crop)
+        pest_res = self.pest_model.predict(roi_frame) if hasattr(self, 'pest_model') else self.detect_pests(roi_frame, crop)
+        nutrient_res = self.nutrient_model.predict(roi_frame) if hasattr(self, 'nutrient_model') else self.colorimetric_nutrients(roi_frame)
 
         # 5. Registry Lookups
         disease_tax = self.registry.get_disease_info(disease_res["name"])

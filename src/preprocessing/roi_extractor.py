@@ -16,8 +16,14 @@ class LeafROIExtractor:
         """
         Uses HSV masking and contour detection to find the tight bounding box
         of the primary foliage cluster.
+        Optimized by calculating the mask on a 160x160 proxy buffer.
         """
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        orig_h, orig_w = frame.shape[:2]
+        proxy_size = 160
+        
+        # Downscale for lightning-fast masking
+        small_frame = cv2.resize(frame, (proxy_size, proxy_size), interpolation=cv2.INTER_LINEAR)
+        hsv = cv2.cvtColor(small_frame, cv2.COLOR_BGR2HSV)
         
         # Broad spectrum for foliage (Green & Yellow)
         lower_bound = np.array([20, 30, 30])
@@ -27,7 +33,7 @@ class LeafROIExtractor:
         mask = cv2.inRange(hsv, lower_bound, upper_bound)
         
         # Clean up the mask using morphological operations
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
         
@@ -35,14 +41,18 @@ class LeafROIExtractor:
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
         if not contours:
-            # If no contours found, return the resized original frame as fallback
             return cv2.resize(frame, self.target_size)
             
-        # Find the largest contour assuming it's the primary leaf
         largest_contour = max(contours, key=cv2.contourArea)
+        sx, sy, sw, sh = cv2.boundingRect(largest_contour)
         
-        # Get bounding box
-        x, y, w, h = cv2.boundingRect(largest_contour)
+        # Map coordinates back to original scale
+        scale_x = orig_w / proxy_size
+        scale_y = orig_h / proxy_size
+        x = int(sx * scale_x)
+        y = int(sy * scale_y)
+        w = int(sw * scale_x)
+        h = int(sh * scale_y)
         
         # Add 10% context margin
         margin_x = int(w * self.context_margin)
