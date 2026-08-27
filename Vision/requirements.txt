@@ -3,3 +3,5 @@ onnxruntime
 numpy
 pillow
 streamlit
+gTTS
+psutil
