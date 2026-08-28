@@ -43,13 +43,12 @@ def get_recent_scans(limit: int = 10):
     rows = cursor.fetchall()
     conn.close()
     
-    # Convert to list of dicts for easy Pandas DataFrame rendering in Streamlit
     return [
         {
             "Time": row[0],
             "Crop": row[1],
             "Disease": row[2] if row[2] else "None",
-            "Health": round(row[3], 1)
+            "Health": round(row[3], 1) if row[3] is not None else 0.0
         } for row in rows
     ]
 
