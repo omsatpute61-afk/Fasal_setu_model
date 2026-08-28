@@ -6,7 +6,7 @@ Generates the strict 4-Tab JSON schema for the Android UI.
 import time
 import json
 from src.preprocessing.image_enhancer import ImageEnhancer
-from src.preprocessing.plant_validator import PlantValidator
+from src.preprocessing.plant_validator import PlantValidator, NotACropError
 from src.preprocessing.roi_extractor import LeafROIExtractor
 from src.data.taxonomy_registry import TaxonomyRegistry
 import os
@@ -47,9 +47,10 @@ class DecisionEngine:
         enhanced_frame = enhancement_res["enhanced_frame"]
 
         # 3. Forgiving Gatekeeper
-        validation = self.validator.validate(enhanced_frame)
-        if validation["status"] == "REJECT":
-            return {"error": validation["warning"]}
+        try:
+            validation = self.validator.validate(enhanced_frame)
+        except NotACropError as e:
+            return {"error": str(e)}
             
         is_soft_pass = validation["status"] == "SOFT_PASS"
 
