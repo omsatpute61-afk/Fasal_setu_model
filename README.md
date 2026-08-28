@@ -1,1 +1,0 @@
-# Fasal_setu_model
