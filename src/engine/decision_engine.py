@@ -9,7 +9,10 @@ from src.preprocessing.image_enhancer import ImageEnhancer
 from src.preprocessing.plant_validator import PlantValidator, NotACropError
 from src.preprocessing.roi_extractor import LeafROIExtractor
 from src.data.taxonomy_registry import TaxonomyRegistry
+from src.engine.scoring import CropHealthScorer
+from src.engine.treatment_agent import TreatmentAdvisor
 import os
+import time
 from ultralytics import YOLO
 
 class DecisionEngine:
@@ -18,6 +21,7 @@ class DecisionEngine:
         self.validator = PlantValidator()
         self.roi_extractor = LeafROIExtractor()
         self.registry = TaxonomyRegistry()
+        self.treatment_advisor = TreatmentAdvisor()
         
         # Load actual trained YOLO models
         # Using a try-except to fallback to base models if weights aren't present locally yet
@@ -64,8 +68,6 @@ class DecisionEngine:
             top_class_idx = int(disease_results[0].boxes.cls[0])
             detected_disease = self.disease_model.names[top_class_idx]
             
-            # Simple dummy approximation for affected area since YOLOv8 obb/seg would be needed for exact pixels
-            # We'll use the ratio of the bounding box area to the ROI area
             box = disease_results[0].boxes.xyxy[0].cpu().numpy()
             box_area = (box[2] - box[0]) * (box[3] - box[1])
             roi_area = roi_frame.shape[0] * roi_frame.shape[1]
@@ -88,15 +90,18 @@ class DecisionEngine:
         disease_res = {"name": detected_disease, "affected_area_pct": affected_area_pct}
         pest_res = {"name": detected_pest, "count": pest_count, "bboxes": pest_bboxes, "etl_exceeded": pest_count > 5}
 
-        # 5. Registry Lookups
+        # 6. Registry Lookups
         disease_tax = self.registry.get_disease_info(disease_res["name"])
         pest_tax = self.registry.get_pest_info(pest_res["name"])
 
-        # 6. Construct 4-Tab JSON Schema
-        health_index = max(0, 100 - (disease_res["affected_area_pct"] * 2) - (pest_res["count"] * 1.5))
+        # 7. PHASE 2: 1-10 Health Scoring Engine
+        scoring_result = CropHealthScorer.calculate_score(disease_res["affected_area_pct"], pest_res["count"])
+        health_index = scoring_result["score"]
+        health_category = scoring_result["category"]
+        
         urgency = "Critical" if disease_tax.get("scientific_name") != "N/A" or pest_res["etl_exceeded"] else "Normal"
         
-        # Merge treatments
+        # 8. Merge baseline treatments
         organic_treatments = []
         chemical_treatments = []
         if disease_res["name"] != "Healthy":
@@ -106,12 +111,19 @@ class DecisionEngine:
             organic_treatments.append(f"Pest: {pest_tax['organic']}")
             chemical_treatments.append(f"Pest: {pest_tax['chemical']}")
 
+        # 9. PHASE 3: RAG Knowledge Retrieval
+        rag_advisory = self.treatment_advisor.get_treatment(disease_res["name"], pest_res["name"], health_category)
+        if rag_advisory:
+            # We append the RAG insights to the organic advisory for display in the UI
+            organic_treatments.append(rag_advisory)
+
         exec_time_ms = (time.perf_counter() - start_time) * 1000
 
+        # 10. Construct 4-Tab JSON Schema
         payload = {
             "tab_1_overview": {
                 "crop": crop,
-                "health_index_score": round(health_index, 1),
+                "health_index_score": health_index,
                 "primary_urgency": urgency,
                 "gatekeeper_warning": validation["warning"] if is_soft_pass else None,
                 "execution_time_ms": round(exec_time_ms, 2)
