@@ -33,7 +33,7 @@ class TreatmentAdvisor:
         
         try:
             # Perform similarity search
-            docs = self.vectorstore.similarity_search(query, k=3)
+            docs = self.vectorstore.similarity_search(query, k=2)
             
             if not docs:
                 return "No RAG context available in local database. Rely on standard taxonomy registry."
