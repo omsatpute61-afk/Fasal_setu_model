@@ -51,10 +51,7 @@ class DecisionEngine:
         enhanced_frame = enhancement_res["enhanced_frame"]
 
         # 3. Forgiving Gatekeeper
-        try:
-            validation = self.validator.validate(enhanced_frame)
-        except NotACropError as e:
-            return {"error": str(e)}
+        validation = self.validator.validate(enhanced_frame)
             
         is_soft_pass = validation["status"] == "SOFT_PASS"
 
@@ -124,6 +121,7 @@ class DecisionEngine:
             "tab_1_overview": {
                 "crop": crop,
                 "health_index_score": health_index,
+                "health_category": health_category,
                 "primary_urgency": urgency,
                 "gatekeeper_warning": validation["warning"] if is_soft_pass else None,
                 "execution_time_ms": round(exec_time_ms, 2)

@@ -86,6 +86,8 @@ else:
     cv2.putText(blank_img, "DEMO INJECTED: TOMATO EARLY BLIGHT", (50, 320), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255,255,255), 2)
     image_source = "DEMO"
 
+from src.preprocessing.plant_validator import NotACropError
+
 if image_source:
     st.markdown("---")
     with st.spinner("Executing Edge Pipeline..."):
@@ -102,7 +104,11 @@ if image_source:
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             crop_selection = "Tomato" # Simplified default for web
 
-        payload = engine.process_image(frame, crop=crop_selection)
+        try:
+            payload = engine.process_image(frame, crop=crop_selection)
+        except NotACropError:
+            st.error("🚫 Invalid image: Crop leaf not detected. Please center the leaf in the frame.")
+            st.stop()
         
         exec_ms = (time.perf_counter() - start_time) * 1000
         if is_demo_mode:
@@ -123,6 +129,7 @@ if image_source:
         with t1:
             st.header("Overview")
             health_index = payload["tab_1_overview"]["health_index_score"]
+            health_category = payload["tab_1_overview"]["health_category"]
             urgency = payload["tab_1_overview"]["primary_urgency"]
             
             # Weather Advisory (Phase 13 equivalent)
@@ -130,7 +137,12 @@ if image_source:
             if weather["precipitation_mm"] > 2.5:
                 st.error("⚠️ Rain Predicted in Kolwadi: Do not apply chemical sprays today to prevent chemical wash-off.")
             
-            st.metric("Health Index", f"{health_index:.1f}/100", urgency)
+            # Phase 4: Dynamic Health Metric and Progress Bar
+            st.metric("Plant Health Score", f"{health_index}/10.0", health_category)
+            
+            # Convert 1-10 to 0.0-1.0 float for st.progress
+            progress_val = max(0.0, min(1.0, health_index / 10.0))
+            st.progress(progress_val)
             
             if payload["tab_1_overview"]["gatekeeper_warning"]:
                 st.warning(payload["tab_1_overview"]["gatekeeper_warning"])
@@ -174,10 +186,13 @@ if image_source:
             if audio_file:
                 st.audio(audio_file)
             
-            # KVK Escalation (Phase 14 equivalent)
-            if health_index < 40.0:
+            # Phase 4: Dynamic KVK Escalation (The Failsafe)
+            if health_index <= 4.0:
                 st.markdown("---")
-                msg = f"🚨 URGENT: My {crop_selection} crop is failing. Disease: {disease_data['common_name']}. Pest count: {pest_data['insect_count']}. Please advise."
+                st.error("🚨 CRITICAL HEALTH ALERT: Immediate expert intervention required.")
+                
+                # Format exactly as requested
+                msg = f"URGENT: Requesting KVK assistance in Kolwadi, Maharashtra. Crop: {crop_selection}. Diagnosis: {disease_data['common_name']}. Health Score: {health_index}/10. Please advise."
                 encoded_msg = urllib.parse.quote(msg)
                 whatsapp_url = f"https://wa.me/919999999999?text={encoded_msg}"
-                st.link_button("🚨 Consult Local KVK Expert (WhatsApp)", whatsapp_url)
+                st.link_button("📲 Send SOS to KVK Expert via WhatsApp", url=whatsapp_url)
