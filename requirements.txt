@@ -4,6 +4,10 @@ onnxruntime
 numpy
 pillow
 ultralytics
+torch
+torchvision
+timm
+albumentations
 
 # Web App & Utilities
 streamlit
