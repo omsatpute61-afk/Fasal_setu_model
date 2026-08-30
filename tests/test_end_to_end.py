@@ -24,8 +24,8 @@ def test_pipeline_resilience_and_schema() -> None:
     frame[250:300, 250:300] = [0, 200, 200] # Yellow patch
     
     # Add heavy Gaussian noise (using safe addition to prevent uint8 underflow artifacts)
-    noise: np.ndarray[Any, Any] = np.random.normal(0, 25, frame.shape)
-    noisy_frame: np.ndarray[Any, Any] = np.clip(frame.astype(np.int16) + noise, 0, 255).astype(np.uint8)
+    noise: np.ndarray[Any, Any] = np.random.normal(0, 25, frame.shape)  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+    noisy_frame: np.ndarray[Any, Any] = np.clip(frame.astype(np.int16) + noise, 0, 255).astype(np.uint8)  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
     
     # Apply severe blur (simulating budget camera motion blur)
     blurred_frame: np.ndarray[Any, Any] = cv2.GaussianBlur(noisy_frame, (31, 31), 15)
