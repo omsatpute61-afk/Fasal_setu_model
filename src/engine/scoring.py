@@ -1,3 +1,5 @@
+from typing import Any, Dict
+
 class CropHealthScorer:
     """
     Phase 2: 1-10 Health Scoring Engine
@@ -6,7 +8,7 @@ class CropHealthScorer:
     """
     
     @staticmethod
-    def calculate_score(affected_area_percentage: float, pest_count: int) -> dict:
+    def calculate_score(affected_area_percentage: float, pest_count: int) -> Dict[str, Any]:
         """
         Calculates a 1.0 to 10.0 health score and classifies the plant urgency.
         """
