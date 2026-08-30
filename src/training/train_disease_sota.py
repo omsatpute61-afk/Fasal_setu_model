@@ -143,7 +143,7 @@ def train() -> None:
             outputs = model(images)
             loss = criterion(outputs, labels)
             loss.backward()
-            optimizer.step()
+            optimizer.step()  # pyright: ignore[reportUnknownMemberType]
             train_loss += float(loss.item())
             
         train_loss /= len(train_loader)
