@@ -1,61 +1,53 @@
 import os
-import argparse
-from pathlib import Path
-from langchain_community.document_loaders import TextLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
+import ssl
 
-def ingest_pdfs():
-    """
-    Scans the data/documents directory for agricultural text files, 
-    splits the text, and stores offline embeddings into ChromaDB.
-    """
-    base_dir = Path(__file__).parent.parent.parent
-    docs_dir = base_dir / "data" / "documents"
-    chroma_dir = base_dir / "data" / "chroma_db"
-    
-    docs_dir.mkdir(parents=True, exist_ok=True)
-    
-    txt_files = list(docs_dir.glob("*.txt"))
-    if not txt_files:
-        print(f"No TXT files found in {docs_dir}. Please run scripts/setup_rag_data.py first.")
-        return
+# --- 1. Fix Windows SSL Certificate Verification Issue ---
+ssl._create_default_https_context = ssl._create_unverified_context  # pyright: ignore[reportPrivateUsage]
+os.environ['CURL_CA_BUNDLE'] = ''
+os.environ['REQUESTS_CA_BUNDLE'] = ''
 
-    print(f"Found {len(txt_files)} TXT files. Processing...")
-    
-    documents = []
-    for txt_file in txt_files:
-        loader = TextLoader(str(txt_file), encoding="utf-8")
-        documents.extend(loader.load())
+from langchain_community.document_loaders import CSVLoader
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_chroma import Chroma
+
+
+class VectorDatabaseBuilder:
+    def __init__(
+        self,
+        csv_filename: str = 'pestopia_treatments.csv',
+        db_dirname: str = 'chroma_db'
+    ) -> None:
+        self.base_dir: str = os.path.abspath(os.path.dirname(__file__))
+        self.csv_path: str = os.path.join(self.base_dir, csv_filename)
+        self.persist_dir: str = os.path.join(self.base_dir, db_dirname)
+
+    def build(self) -> None:
+        if not os.path.exists(self.csv_path):
+            print(f"❌ Error: Cannot find {self.csv_path}. Please place the CSV in the data folder.")
+            return
+
+        print("Loading Pestopia treatment data...")
+        loader = CSVLoader(file_path=self.csv_path, encoding='utf-8')
+        documents = loader.load()
         
-    print(f"Loaded {len(documents)} document pages. Splitting...")
-    
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=50,
-        separators=["\n\n", "\n", ".", " ", ""]
-    )
-    
-    chunks = text_splitter.split_documents(documents)
-    print(f"Created {len(chunks)} text chunks. Generating embeddings...")
-    
-    # Lightweight offline embeddings
-    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    
-    # Initialize and persist Chroma vector store
-    vectorstore = Chroma.from_documents(
-        documents=chunks,
-        embedding=embeddings,
-        persist_directory=str(chroma_dir)
-    )
-    
-    # Note: In newer versions of ChromaDB / LangChain, persist() is automatic, 
-    # but we can explicitly call it if available.
-    if hasattr(vectorstore, 'persist'):
-        vectorstore.persist()
+        print(f"Loaded {len(documents)} treatment records. Generating embeddings...")
         
-    print(f"Successfully ingested {len(chunks)} chunks into local ChromaDB at {chroma_dir}")
+        # Initialize the lightweight embedding model
+        embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+
+        print("Building ChromaDB Vector Store. This may take a moment...")
+        
+        # Create and persist the vector store
+        Chroma.from_documents( # pyright: ignore[reportUnknownMemberType]
+            documents=documents,
+            embedding=embeddings,
+            persist_directory=self.persist_dir
+        )
+
+        print(f"\n✅ Local RAG database built successfully at: {self.persist_dir}")
+        print("The LangChain Advisory Agent is now armed with localized treatments!")
+
 
 if __name__ == "__main__":
-    ingest_pdfs()
+    builder = VectorDatabaseBuilder()
+    builder.build()
