@@ -7,7 +7,7 @@ from torchvision import transforms  # pyright: ignore[reportMissingTypeStubs]
 from PIL import Image
 import timm
 from sklearn.model_selection import train_test_split  # pyright: ignore[reportUnknownVariableType]
-from typing import Any, Dict, List, Tuple, Optional, cast
+from typing import Any, Dict, List, Tuple, cast
 
 class PestopiaDataset(Dataset[Tuple[torch.Tensor, int]]):
     def __init__(self, image_paths: List[str], labels: List[int], transform: Any = None) -> None:
@@ -45,13 +45,11 @@ def train_sota_pest_classifier() -> None:
 
     print(f"Loaded {len(all_paths)} images across {len(classes)} classes.")
 
-    train_paths: List[str]
-    val_paths: List[str]
-    train_labels: List[int]
-    val_labels: List[int]
-    train_paths, val_paths, train_labels, val_labels = train_test_split(
-        all_paths, all_labels, test_size=0.2, random_state=42, stratify=all_labels
-    )  # pyright: ignore[reportUnknownVariableType]
+    split_result = cast(
+        Tuple[List[str], List[str], List[int], List[int]],
+        train_test_split(all_paths, all_labels, test_size=0.2, random_state=42, stratify=all_labels)
+    )
+    train_paths, val_paths, train_labels, val_labels = split_result
 
     # 1. High-Resolution & Advanced Augmentation
     transform_train: Any = transforms.Compose([
