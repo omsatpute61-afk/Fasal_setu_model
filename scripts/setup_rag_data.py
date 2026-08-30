@@ -1,20 +1,19 @@
-import os
 from pathlib import Path
 
-def setup_rag_data():
+def setup_rag_data() -> None:
     """
     Autonomously creates the required directories and generates a 
     synthetic agricultural extension manual text file for RAG ingestion.
     """
-    base_dir = Path(__file__).parent.parent
-    docs_dir = base_dir / "data" / "documents"
-    chroma_dir = base_dir / "data" / "chroma_db"
+    base_dir: Path = Path(__file__).parent.parent
+    docs_dir: Path = base_dir / "data" / "documents"
+    chroma_dir: Path = base_dir / "data" / "chroma_db"
     
     # Create directories
     docs_dir.mkdir(parents=True, exist_ok=True)
     chroma_dir.mkdir(parents=True, exist_ok=True)
     
-    doc_path = docs_dir / "mock_agricultural_extension.txt"
+    doc_path: Path = docs_dir / "mock_agricultural_extension.txt"
     
     mock_content = """AGRIVISION KVK EXTENSION MANUAL (SYNTHETIC RAG DATA)
 
