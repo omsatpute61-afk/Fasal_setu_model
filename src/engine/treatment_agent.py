@@ -1,3 +1,4 @@
+# pyright: reportMissingImports=false, reportMissingTypeStubs=false, reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false, reportUnknownParameterType=false, reportMissingParameterType=false, reportMissingTypeArgument=false, reportIndexIssue=false
 from pathlib import Path
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -42,7 +43,7 @@ class TreatmentAdvisor:
             rag_response = "--- Local Extension Manual Insights ---\n"
             for i, doc in enumerate(docs, 1):
                 clean_text = doc.page_content.replace('\n', ' ').strip()
-                rag_response += f"• Insight {i}: {clean_text}\n"
+                rag_response += f"* Insight {i}: {clean_text}\n"
                 
             return rag_response
             
