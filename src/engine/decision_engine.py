@@ -1,51 +1,39 @@
-# pyright: reportMissingImports=false, reportMissingTypeStubs=false, reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false, reportUnknownParameterType=false, reportMissingParameterType=false, reportMissingTypeArgument=false, reportIndexIssue=false
+# pyright: reportMissingImports=false, reportUnknownMemberType=false, reportUnknownVariableType=false
 import os
 import numpy as np
-import onnxruntime as ort
+import onnxruntime as ort # type: ignore
 from PIL import Image
-from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
+import concurrent.futures
+from typing import Any, Optional
 
 class DecisionEngine:
     def __init__(self) -> None:
-        self.src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        self.src_dir: str = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         
-        self.disease_onnx = os.path.join(self.src_dir, 'weights', 'disease_model.onnx')
-        self.pest_onnx = os.path.join(self.src_dir, 'weights', 'pest_model.onnx')
-        self.db_dir = os.path.join(self.src_dir, 'data', 'chroma_db')
-        
-        # New: Paths to your dictionaries
-        self.disease_labels_path = os.path.join(self.src_dir, 'weights', 'disease_labels.txt')
-        self.pest_labels_path = os.path.join(self.src_dir, 'weights', 'pest_labels.txt')
+        self.disease_onnx: str = os.path.join(self.src_dir, 'weights', 'disease_model.onnx')
+        self.pest_onnx: str = os.path.join(self.src_dir, 'weights', 'pest_model.onnx')
+        self.disease_labels_path: str = os.path.join(self.src_dir, 'weights', 'disease_labels.txt')
+        self.pest_labels_path: str = os.path.join(self.src_dir, 'weights', 'pest_labels.txt')
 
-        self.disease_session = self._load_onnx(self.disease_onnx)
-        self.pest_session = self._load_onnx(self.pest_onnx)
-        self.rag_db = self._load_rag()
+        self.disease_session: Any = self._load_onnx(self.disease_onnx)
+        self.pest_session: Any = self._load_onnx(self.pest_onnx)
         
-        # Load the plain-English lists into memory
-        self.disease_classes = self._load_labels(self.disease_labels_path)
-        self.pest_classes = self._load_labels(self.pest_labels_path)
+        self.disease_classes: list[str] = self._load_labels(self.disease_labels_path)
+        self.pest_classes: list[str] = self._load_labels(self.pest_labels_path)
 
-    def _load_onnx(self, path: str):
+    def _load_onnx(self, path: str) -> Any:
         if not os.path.exists(path):
             return None
         try:
-            return ort.InferenceSession(path, providers=['CPUExecutionProvider'])
+            opts: Any = ort.SessionOptions()  # type: ignore
+            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL  # type: ignore
+            opts.intra_op_num_threads = int(os.cpu_count() or 4)
+            return ort.InferenceSession(path, sess_options=opts, providers=['CPUExecutionProvider'])  # type: ignore
         except Exception as e:
             print(f"Failed to load ONNX: {e}")
             return None
 
-    def _load_rag(self):
-        if not os.path.exists(self.db_dir):
-            return None
-            
-        # Optimization: Suppress the HuggingFace token warnings for cleaner terminal output
-        os.environ["TOKENIZERS_PARALLELISM"] = "false" 
-        embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-        return Chroma(persist_directory=self.db_dir, embedding_function=embeddings)
-
-    def _load_labels(self, path: str):
-        """Reads the text file and returns a list of class names."""
+    def _load_labels(self, path: str) -> list[str]:
         if not os.path.exists(path):
             print(f"Warning: Label file missing at {path}")
             return []
@@ -58,73 +46,81 @@ class DecisionEngine:
         mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
         std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
         img_data = (img_data - mean) / std
-        img_data = np.transpose(img_data, (2, 0, 1))
-        return np.expand_dims(img_data, axis=0)
+        return np.expand_dims(np.transpose(img_data, (2, 0, 1)), axis=0)
 
-    def _get_confidence(self, logits):
-        """Converts raw AI output into a Softmax percentage"""
+    def _get_confidence(self, logits: np.ndarray) -> np.ndarray:
         e_x = np.exp(logits - np.max(logits))
         return e_x / e_x.sum()
 
-    def process_image(self, image: Image.Image) -> dict:
-        issues_detected = []
-        health_score = 10
+    def process_image(self, image: Image.Image) -> dict[str, Any]:
+        health_score: int = 10
+        escalate_kvk: bool = False
         
-        disease_display = "Healthy Crop"
-        pest_display = "No pests detected."
-        rag_search_terms = []
-        
-        # 1. Disease Inference
-        if self.disease_session and self.disease_classes:
+        disease_display: str = "Healthy Crop"
+        pest_display: str = "No pests detected."
+
+        def run_disease() -> Optional[tuple[int, float]]:
+            if not (self.disease_session and self.disease_classes):
+                return None
             input_tensor = self._preprocess_image(image, 224)
-            outputs = self.disease_session.run(None, {'input': input_tensor})[0][0]
-            
-            probs = self._get_confidence(outputs)
-            disease_idx = int(np.argmax(probs))
-            confidence = probs[disease_idx] * 100
-            
-            # Map index to English name
-            disease_name = self.disease_classes[disease_idx] if disease_idx < len(self.disease_classes) else f"Unknown ID {disease_idx}"
-            
-            # The "Healthy" Override
-            if "healthy" not in disease_name.lower():
-                disease_display = f"Disease: {disease_name} (Conf: {confidence:.1f}%)"
-                issues_detected.append(disease_display)
-                rag_search_terms.append(disease_name)
-                health_score -= 4
-            else:
-                disease_display = f"Healthy Crop (Conf: {confidence:.1f}%)"
+            outputs: Any = self.disease_session.run(None, {'input': input_tensor})[0][0]
+            probs: np.ndarray = self._get_confidence(outputs)
+            idx: int = int(np.argmax(probs))
+            return idx, float(probs[idx] * 100)
 
-        # 2. Pest Inference
-        if self.pest_session and self.pest_classes:
+        def run_pest() -> Optional[tuple[int, float]]:
+            if not (self.pest_session and self.pest_classes):
+                return None
             input_tensor = self._preprocess_image(image, 384)
-            outputs = self.pest_session.run(None, {'input': input_tensor})[0][0]
-            
-            probs = self._get_confidence(outputs)
-            pest_idx = int(np.argmax(probs))
-            confidence = probs[pest_idx] * 100
-            
-            pest_name = self.pest_classes[pest_idx] if pest_idx < len(self.pest_classes) else f"Unknown ID {pest_idx}"
-            
-            # Confidence Threshold & "Healthy/None" override
-            if confidence > 60.0 and "healthy" not in pest_name.lower() and "none" not in pest_name.lower():
-                pest_display = f"Pest: {pest_name} (Conf: {confidence:.1f}%)"
-                issues_detected.append(pest_display)
-                rag_search_terms.append(pest_name)
-                health_score -= 4
+            outputs: Any = self.pest_session.run(None, {'input': input_tensor})[0][0]
+            probs: np.ndarray = self._get_confidence(outputs)
+            idx: int = int(np.argmax(probs))
+            return idx, float(probs[idx] * 100)
 
-        # 3. Vector DB Retrieval (RAG)
-        advice = "No immediate chemical intervention required. Continue regular crop monitoring."
-        if rag_search_terms and self.rag_db:
-            # Querying the database using ONLY the English names (no percentages or IDs)
-            query = f"Recommended pesticide and treatment for {' and '.join(rag_search_terms)}"
-            results = self.rag_db.similarity_search(query, k=2)
-            if results:
-                advice = "\n\n".join([doc.page_content for doc in results])
+        # Execute both models in parallel
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future_d = executor.submit(run_disease)
+            future_p = executor.submit(run_pest)
+            disease_res = future_d.result()
+            pest_res = future_p.result()
+
+        # 1. Disease Processing
+        if disease_res:
+            d_idx, d_conf = disease_res
+            raw_name: str = self.disease_classes[d_idx] if d_idx < len(self.disease_classes) else f"Unknown ID {d_idx}"
+            d_name: str = raw_name.replace("_", " ")
+
+            if d_conf < 85.0:
+                disease_display = f"Uncertain Diagnosis ({d_conf:.1f}%)"
+                escalate_kvk = True
+                health_score -= 3
+            else:
+                if "healthy" in d_name.lower():
+                    disease_display = f"Healthy Crop (Conf: {d_conf:.1f}%)"
+                else:
+                    disease_display = f"Disease: {d_name} (Conf: {d_conf:.1f}%)"
+                    health_score -= 4
+
+        # 2. Pest Processing
+        if pest_res:
+            p_idx, p_conf = pest_res
+            raw_pname: str = self.pest_classes[p_idx] if p_idx < len(self.pest_classes) else f"Unknown ID {p_idx}"
+            p_name: str = raw_pname.replace("_", " ")
+
+            if p_conf < 80.0:
+                pest_display = f"Uncertain Diagnosis ({p_conf:.1f}%)"
+                escalate_kvk = True
+                health_score -= 2
+            else:
+                if "healthy" not in p_name.lower() and "none" not in p_name.lower():
+                    pest_display = f"Pest: {p_name} (Conf: {p_conf:.1f}%)"
+                    health_score -= 4
+                else:
+                    pest_display = f"No pests detected (Conf: {p_conf:.1f}%)"
 
         return {
             'disease_text': disease_display,
             'pest_text': pest_display,
             'score': max(1, health_score),
-            'advice': advice
+            'escalate_kvk': escalate_kvk
         }

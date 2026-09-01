@@ -22,23 +22,16 @@ st.markdown("""
         margin-bottom: 0.2rem;
         text-align: center;
     }
-    .treatment-box {
-        background-color: #f1f8e9;
-        border-radius: 8px;
+    .escalation-box {
+        background-color: #ffebe6;
+        border-left: 5px solid #ff3d00;
         padding: 20px;
-        border: 1px solid #c5e1a5;
-        color: #1b5e20;
-        font-size: 1rem;
-        line-height: 1.6;
-    }
-    .disclaimer-box {
-        background-color: #fff3cd;
-        border-left: 4px solid #ffc107;
-        padding: 12px;
-        color: #856404;
-        font-size: 0.9rem;
+        color: #b32a00;
+        font-size: 1.05rem;
+        border-radius: 4px;
         margin-top: 15px;
         margin-bottom: 15px;
+        box-shadow: 0px 2px 5px rgba(0,0,0,0.1);
     }
     </style>
 """, unsafe_allow_html=True)
@@ -59,21 +52,21 @@ with st.sidebar:
 
     st.markdown("**System Status**")
     
-    disease_path = os.path.join("src", "weights", "best_disease_model.pth")
-    pest_path = os.path.join("src", "weights", "best_pest_model.pth")
+    disease_path = os.path.join("src", "weights", "disease_model.onnx")
+    pest_path = os.path.join("src", "weights", "pest_model.onnx")
     
     if os.path.exists(disease_path):
-        st.caption("🟢 Disease AI: Ready")
+        st.caption("✅ Disease AI: Ready")
     else:
-        st.caption("🔴 Disease AI: Offline (Check Weights)")
+        st.caption("❌ Disease AI: Offline (Check Weights)")
         
     if os.path.exists(pest_path):
-        st.caption("🟢 Pest AI: Ready")
+        st.caption("✅ Pest AI: Ready")
     else:
-        st.caption("🔴 Pest AI: Offline (Check Weights)")
+        st.caption("❌ Pest AI: Offline (Check Weights)")
         
     st.divider()
-    st.caption("Edge Diagnostic Pipeline")
+    st.caption("Pure ONNX Edge Diagnostic Pipeline")
 
 
 # --- 4. MAIN UI & INPUT HANDLING ---
@@ -110,7 +103,7 @@ def clear_active_cache():
 if image_file is None:
     # Trigger instant cleanup when no image is loaded
     clear_active_cache()
-    st.info("👆 Please provide an image to begin the diagnosis.")
+    st.info("⬆️ Please provide an image to begin the diagnosis.")
 
 else:
     # Check if a new image was uploaded to clear previous stale states
@@ -128,71 +121,60 @@ else:
     st.image(input_image, use_container_width=True, caption="Analyzed Sample")
 
     # Run Inference
-    with st.spinner("Analyzing image features..."):
+    with st.spinner("Executing ONNX Inference..."):
         engine = get_engine() 
         result = engine.process_image(input_image)
         st.session_state['last_result'] = result
 
     # Extract Results
-    full_detection = result.get('disease', 'Healthy Crop')
+    disease_text = result.get('disease_text', 'Healthy Crop')
+    pest_text = result.get('pest_text', 'No pests detected.')
     health_score = result.get('score', 10)
-    treatment_advice = result.get('advice', 'No immediate chemical intervention required. Continue regular crop monitoring.')
-
-    disease_part = "No disease detected."
-    pest_part = "No pests detected."
-
-    if "Healthy" not in full_detection:
-        parts = full_detection.split(" & ")
-        for p in parts:
-            if "Disease" in p: 
-                disease_part = p
-            if "Pest" in p: 
-                pest_part = p
-    else:
-        disease_part = "Healthy Crop"
-        pest_part = "No pests detected."
+    escalate_kvk = result.get('escalate_kvk', False)
 
     # --- 6. SEPARATED TABS ---
-    tab1, tab2, tab3 = st.tabs(["🦠 Disease Detection", "🐛 Pest Detection", "💊 Treatment Plan"])
+    tab1, tab2 = st.tabs(["🦠 Disease Detection", "🐛 Pest Detection"])
 
     with tab1:
         st.markdown("### Crop Pathology Analysis")
-        if "Disease Class" in disease_part:
-            st.warning(f"**Identified:** {disease_part}")
-            st.progress(health_score / 10.0)
-            st.caption(f"Overall Plant Health Score: {health_score}/10")
-        elif "Healthy" in disease_part:
-            st.success(f"**Identified:** {disease_part}")
-            st.progress(1.0)
-            st.caption("Overall Plant Health Score: 10/10")
+        if "Healthy" in disease_text:
+            st.success(f"**{disease_text}**")
+        elif "Uncertain" in disease_text or escalate_kvk:
+            st.warning(f"**{disease_text}**")
         else:
-            st.info(disease_part)
+            st.error(f"**{disease_text}**")
+        
+        st.progress(health_score / 10.0)
+        st.caption(f"Overall Plant Health Score: {health_score}/10")
 
     with tab2:
         st.markdown("### Entomological Analysis")
-        if "Pest Class" in pest_part:
-            st.error(f"**Identified:** {pest_part}")
-            st.caption("Note: High-resolution texture analysis utilized for pest classification.")
+        if "No pests" in pest_text:
+            st.success(f"**{pest_text}**")
+        elif "Uncertain" in pest_text or "Possible" in pest_text or escalate_kvk:
+            st.warning(f"**{pest_text}**")
         else:
-            st.success(pest_part)
+            st.error(f"**{pest_text}**")
+        st.caption("Note: High-resolution texture analysis utilized for pest classification.")
 
-    with tab3:
-        st.markdown("### Recommended Action")
-        st.markdown(f'<div class="treatment-box">{treatment_advice}</div>', unsafe_allow_html=True)
-        
+    # --- 7. ESCALATION RENDERING ---
+    if escalate_kvk:
         st.markdown(
-            '<div class="disclaimer-box"><strong>⚠️ Disclaimer:</strong> AI models can misidentify visual symptoms. '
-            'If the condition is severe, or if the recommended treatment does not match your field observations, '
-            'please do not apply chemicals blindly.</div>',
+            '<div class="escalation-box">'
+            '<strong>⚠️ ALERT: Low Confidence Diagnosis / Possible Out-of-Distribution Sample</strong><br><br>'
+            'The AI engine could not classify this sample with sufficient statistical confidence. '
+            'To prevent incorrect agricultural interventions, the system has automatically triggered an escalation. '
+            'Please consult a human expert or official agricultural authority before taking action.'
+            '</div>',
             unsafe_allow_html=True
         )
         
         st.divider()
-        st.markdown("#### 🧑‍🌾 Unsure? Consult Human Experts")
+        st.markdown("#### 👨‍🌾 Consult Human Experts")
         st.write("Redirect to official agricultural portals for verified, localized assistance:")
         
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
-            st.link_button("🌐 Locate your nearest KVK", "https://kvk.icar.gov.in/", use_container_width=True)
+            st.link_button("📍 Locate your nearest KVK", "https://kvk.icar.gov.in/", use_container_width=True)
         with col_btn2:
             st.link_button("📞 Kisan Call Center (1551)", "https://mkisan.gov.in/", use_container_width=True)
