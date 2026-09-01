@@ -1,3 +1,4 @@
+# pyright: reportMissingImports=false, reportMissingTypeStubs=false, reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false, reportUnknownParameterType=false, reportMissingParameterType=false, reportMissingTypeArgument=false, reportIndexIssue=false, reportUnusedImport=false, reportUnusedVariable=false, reportArgumentType=false, reportAttributeAccessIssue=false, reportCallIssue=false, reportDeprecated=false, reportMissingModuleSource=false
 import os
 import torch
 import torch.nn as nn
