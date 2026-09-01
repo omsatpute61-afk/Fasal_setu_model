@@ -54,7 +54,8 @@ class DecisionEngine:
 
     def process_image(self, image: Image.Image) -> dict[str, Any]:
         health_score: int = 10
-        escalate_kvk: bool = False
+        disease_escalate: bool = False
+        pest_escalate: bool = False
         
         disease_display: str = "Healthy Crop"
         pest_display: str = "No pests detected."
@@ -92,7 +93,7 @@ class DecisionEngine:
 
             if d_conf < 85.0:
                 disease_display = f"Uncertain Diagnosis ({d_conf:.1f}%)"
-                escalate_kvk = True
+                disease_escalate = True
                 health_score -= 3
             else:
                 if "healthy" in d_name.lower():
@@ -109,7 +110,7 @@ class DecisionEngine:
 
             if p_conf < 80.0:
                 pest_display = f"Uncertain Diagnosis ({p_conf:.1f}%)"
-                escalate_kvk = True
+                pest_escalate = True
                 health_score -= 2
             else:
                 if "healthy" not in p_name.lower() and "none" not in p_name.lower():
@@ -122,5 +123,6 @@ class DecisionEngine:
             'disease_text': disease_display,
             'pest_text': pest_display,
             'score': max(1, health_score),
-            'escalate_kvk': escalate_kvk
+            'disease_escalate': disease_escalate,
+            'pest_escalate': pest_escalate
         }

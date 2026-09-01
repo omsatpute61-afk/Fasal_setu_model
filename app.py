@@ -127,54 +127,59 @@ else:
         st.session_state['last_result'] = result
 
     # Extract Results
-    disease_text = result.get('disease_text', 'Healthy Crop')
-    pest_text = result.get('pest_text', 'No pests detected.')
-    health_score = result.get('score', 10)
-    escalate_kvk = result.get('escalate_kvk', False)
+    disease_text = str(result.get('disease_text', 'Healthy Crop'))
+    pest_text = str(result.get('pest_text', 'No pests detected.'))
+    health_score = int(result.get('score', 10))
+    disease_escalate = bool(result.get('disease_escalate', False))
+    pest_escalate = bool(result.get('pest_escalate', False))
 
     # --- 6. SEPARATED TABS ---
     tab1, tab2 = st.tabs(["🦠 Disease Detection", "🐛 Pest Detection"])
+
+    escalation_html = (
+        '<div class="escalation-box">'
+        '<strong>⚠️ ALERT: Low Confidence Diagnosis / Possible Out-of-Distribution Sample</strong><br><br>'
+        'The AI engine could not classify this sample with sufficient statistical confidence. '
+        'To prevent incorrect agricultural interventions, the system has automatically triggered an escalation. '
+        'Please consult a human expert or official agricultural authority before taking action.'
+        '</div>'
+    )
 
     with tab1:
         st.markdown("### Crop Pathology Analysis")
         if "Healthy" in disease_text:
             st.success(f"**{disease_text}**")
-        elif "Uncertain" in disease_text or escalate_kvk:
+        elif "Uncertain" in disease_text or disease_escalate:
             st.warning(f"**{disease_text}**")
         else:
             st.error(f"**{disease_text}**")
         
         st.progress(health_score / 10.0)
         st.caption(f"Overall Plant Health Score: {health_score}/10")
+        
+        if disease_escalate:
+            st.markdown(escalation_html, unsafe_allow_html=True)
 
     with tab2:
         st.markdown("### Entomological Analysis")
         if "No pests" in pest_text:
             st.success(f"**{pest_text}**")
-        elif "Uncertain" in pest_text or "Possible" in pest_text or escalate_kvk:
+        elif "Uncertain" in pest_text or "Possible" in pest_text or pest_escalate:
             st.warning(f"**{pest_text}**")
         else:
             st.error(f"**{pest_text}**")
         st.caption("Note: High-resolution texture analysis utilized for pest classification.")
+        
+        if pest_escalate:
+            st.markdown(escalation_html, unsafe_allow_html=True)
 
-    # --- 7. ESCALATION RENDERING ---
-    if escalate_kvk:
-        st.markdown(
-            '<div class="escalation-box">'
-            '<strong>⚠️ ALERT: Low Confidence Diagnosis / Possible Out-of-Distribution Sample</strong><br><br>'
-            'The AI engine could not classify this sample with sufficient statistical confidence. '
-            'To prevent incorrect agricultural interventions, the system has automatically triggered an escalation. '
-            'Please consult a human expert or official agricultural authority before taking action.'
-            '</div>',
-            unsafe_allow_html=True
-        )
-        
-        st.divider()
-        st.markdown("#### 👨‍🌾 Consult Human Experts")
-        st.write("Redirect to official agricultural portals for verified, localized assistance:")
-        
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            st.link_button("📍 Locate your nearest KVK", "https://kvk.icar.gov.in/", use_container_width=True)
-        with col_btn2:
-            st.link_button("📞 Kisan Call Center (1551)", "https://mkisan.gov.in/", use_container_width=True)
+    # --- 7. CONSULT HUMAN EXPERTS (Always visible at bottom) ---
+    st.divider()
+    st.markdown("#### 👨‍🌾 Consult Human Experts")
+    st.write("Redirect to official agricultural portals for verified, localized assistance:")
+    
+    col_btn1, col_btn2 = st.columns(2)
+    with col_btn1:
+        st.link_button("📍 Locate your nearest KVK", "https://kvk.icar.gov.in/", use_container_width=True)
+    with col_btn2:
+        st.link_button("📞 Kisan Call Center (1551)", "https://mkisan.gov.in/", use_container_width=True)
