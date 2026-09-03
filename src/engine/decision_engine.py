@@ -91,7 +91,13 @@ class DecisionEngine:
             raw_name: str = self.disease_classes[d_idx] if d_idx < len(self.disease_classes) else f"Unknown ID {d_idx}"
             d_name: str = raw_name.replace("_", " ")
 
-            if d_conf < 85.0:
+            # Intercept pests accidentally included in the Disease dataset
+            dataset_flaw_pests: list[str] = ["Wheat Mite", "Wheat Aphid", "Tomato Spider mites", "Wheat Stem fly"]
+            if d_name in dataset_flaw_pests:
+                disease_display = "Anomaly Detected: Unverified sample features."
+                disease_escalate = True
+                health_score -= 3
+            elif d_conf < 85.0:
                 disease_display = f"Uncertain Diagnosis ({d_conf:.1f}%)"
                 disease_escalate = True
                 health_score -= 3

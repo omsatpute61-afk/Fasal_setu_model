@@ -1,0 +1,22 @@
+{
+    "bundle_creation_time": "2026-09-01T05:35:27.760977Z",
+    "models": {
+        "disease_model": {
+            "input_tensor": "[1, 3, 224, 224]",
+            "classes": 67
+        },
+        "pest_model": {
+            "input_tensor": "[1, 3, 384, 384]",
+            "classes": 132
+        }
+    },
+    "included_assets": [
+        "assets/disease_model.onnx",
+        "assets/disease_model.onnx.data",
+        "assets/pest_model.onnx",
+        "assets/pest_model.onnx.data",
+        "assets/disease_labels.txt",
+        "assets/pest_labels.txt",
+        "database/chroma_db_contents"
+    ]
+}
