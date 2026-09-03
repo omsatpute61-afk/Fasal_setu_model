@@ -1,0 +1,23 @@
+# --- Web Dashboard Interface ---
+streamlit>=1.30.0
+
+# --- Core Machine Learning & Vision ---
+torch>=2.0.0
+torchvision>=0.15.0
+timm>=0.9.0
+Pillow>=9.0.0
+numpy>=1.24.0
+
+# --- RAG & Vector Database ---
+langchain>=0.1.0
+langchain-community>=0.0.10
+langchain-chroma>=0.1.0
+langchain-huggingface>=0.0.1
+chromadb>=0.4.22
+pandas>=2.0.0
+
+# --- Model Translation & Edge Export (For your Flutter teammate) ---
+onnx>=1.15.0
+onnxruntime>=1.16.0
+onnx-tf>=1.10.0
+tensorflow>=2.15.0
