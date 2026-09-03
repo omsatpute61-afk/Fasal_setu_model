@@ -2,7 +2,6 @@
 import os
 import gc
 import streamlit as st
-import torch
 from PIL import Image
 
 # --- 1. Page Configuration & Custom Styling ---
@@ -94,10 +93,8 @@ def clear_active_cache():
         if key in st.session_state:
             del st.session_state[key]
             
-    # Force Python and PyTorch memory garbage collection
+    # Force Python memory garbage collection
     gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
 
 
 if image_file is None:
