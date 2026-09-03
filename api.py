@@ -46,15 +46,14 @@ async def predict_image(
     api_key: str = Depends(get_api_key)
 ) -> dict[str, Any]:
     
-    # Validate file type
-    if not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File provided is not an image.")
-
     try:
         # Read the image bytes directly into memory
         image_bytes = await file.read()
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        
+        try:
+            image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        except Exception:
+            raise HTTPException(status_code=400, detail="File provided is not a valid image.")
+            
         # Run inference using the exact same ONNX pipeline the Streamlit app uses
         result = engine.process_image(image)
         
